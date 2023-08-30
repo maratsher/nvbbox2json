@@ -38,6 +38,7 @@
 #include <gst/base/gstbasetransform.h>
 #include "gstnvobjmeta2json.h"
 #include "gstnvdsmeta.h"
+#include "json_object.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_nvobjmeta2json_debug_category);
 #define GST_CAT_DEFAULT gst_nvobjmeta2json_debug_category
@@ -123,7 +124,7 @@ gst_nvobjmeta2json_transform (GstBaseTransform * trans, GstBuffer * inbuf,
     }
 
     // Создаем JSON объект
-    JsonObject *json_root = json_object_new_object();
+    json_object *json_root = json_object_new_object();
 
     // Итерируемся по объектам в пакете
     for (l = batch_meta->frame_meta_list; l != NULL; l = l->next) {
@@ -140,7 +141,7 @@ gst_nvobjmeta2json_transform (GstBaseTransform * trans, GstBuffer * inbuf,
             gint height = obj_meta->rect_params.height;
 
             // Создаем JSON объект для текущего объекта
-            JsonObject *json_obj = json_object_new_object();
+            json_object *json_obj = json_object_new_object();
             json_object_object_add(json_obj, "object_id", json_object_new_int(obj_id));
             json_object_object_add(json_obj, "confidence", json_object_new_double(confidence));
             json_object_object_add(json_obj, "left", json_object_new_int(left));

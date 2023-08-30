@@ -24,6 +24,10 @@ PKGS:= gstreamer-1.0 gstreamer-base-1.0 gstreamer-video-1.0
 CFLAGS+=$(shell pkg-config --cflags $(PKGS))
 LIBS+=$(shell pkg-config --libs $(PKGS))
 
+CFLAGS += $(shell pkg-config --cflags json-c)
+LDFLAGS += $(shell pkg-config --libs json-c)
+
+
 all: $(LIB)
 
 %.o: %.cpp $(INCS) Makefile
