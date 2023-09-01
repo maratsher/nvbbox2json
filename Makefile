@@ -9,7 +9,7 @@ DEEPSTREAM_INTALL_DIR:= /opt/nvidia/deepstream/deepstream-6.3
 CFLAGS := -fPIC -std=c++11 -Wunused-variable
 LIBS := -shared -Wl,-no-undefined \
   -L/usr/local/cuda-$(CUDA_VER)/lib64/ -lcudart -lnppc -lnppig -lnpps \
-  -L $(DEEPSTREAM_INTALL_DIR)/lib -lgstnvquery -lgstnvdsmeta \
+  -L $(DEEPSTREAM_INTALL_DIR)/lib -lnvdsgst_meta \
   -Wl,-rpath,$(DEEPSTREAM_INTALL_DIR)/lib \
 
 
@@ -20,12 +20,12 @@ CFLAGS+= \
 
 OBJS:= $(SRCS:.cpp=.o)
 
-PKGS:= gstreamer-1.0 gstreamer-base-1.0 gstreamer-video-1.0
+PKGS:= gstreamer-1.0 gstreamer-base-1.0 gstreamer-video-1.0 json-c
 CFLAGS+=$(shell pkg-config --cflags $(PKGS))
 LIBS+=$(shell pkg-config --libs $(PKGS))
 
-CFLAGS += $(shell pkg-config --cflags json-c)
-LDFLAGS += $(shell pkg-config --libs json-c)
+# CFLAGS += $(shell pkg-config --cflags json-c)
+# LDFLAGS += $(shell pkg-config --libs json-c)
 
 
 all: $(LIB)

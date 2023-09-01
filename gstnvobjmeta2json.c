@@ -38,7 +38,8 @@
 #include <gst/base/gstbasetransform.h>
 #include "gstnvobjmeta2json.h"
 #include "gstnvdsmeta.h"
-#include "json_object.h"
+#include <json-c/json.h>
+#include <json-c/json_object.h>
 
 GST_DEBUG_CATEGORY_STATIC (gst_nvobjmeta2json_debug_category);
 #define GST_CAT_DEFAULT gst_nvobjmeta2json_debug_category
@@ -59,14 +60,17 @@ static GstStaticPadTemplate gst_nvobjmeta2json_src_template =
 GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("application/unknown")
+    //GST_STATIC_CAPS ("application/unknown")
+    GST_STATIC_CAPS_ANY
     );
 
 static GstStaticPadTemplate gst_nvobjmeta2json_sink_template =
 GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("application/unknown")
+    //GST_STATIC_CAPS ("application/unknown")
+    GST_STATIC_CAPS_ANY
+    //GST_STATIC_CAPS ("text/plain; charset=UTF-8")
     );
 
 
@@ -123,15 +127,25 @@ gst_nvobjmeta2json_transform (GstBaseTransform * trans, GstBuffer * inbuf,
         return GST_FLOW_ERROR;
     }
 
-    // Создаем JSON объект
-    json_object *json_root = json_object_new_object();
+    // Создание корневого объекта JSON
+    struct json_object *json_root = json_object_new_object();
+
+    // Добавление свойств в корневой объект
+    json_object_object_add(json_root, "function", json_object_new_string("neyron"));
+    json_object_object_add(json_root, "channel", json_object_new_int(1));
+    json_object_object_add(json_root, "frame", json_object_new_int(0));
+
+    // Создание массива json объектов
+    struct json_object *objects_array = json_object_new_array();
+
 
     // Итерируемся по объектам в пакете
     for (l = batch_meta->frame_meta_list; l != NULL; l = l->next) {
         NvDsFrameMeta *frame_meta = (NvDsFrameMeta *) (l->data);
 
-        for (GList *l = frame_meta->obj_meta_list; l != NULL; l = l->next) {
-            NvDsObjectMeta *obj_meta = (NvDsObjectMeta *) (l->data);
+        for (GList *o = frame_meta->obj_meta_list; o != NULL; o = o->next) {
+
+            NvDsObjectMeta *obj_meta = (NvDsObjectMeta *) (o->data);
             // Извлекаем данные из NvDsObjectMeta
             gint obj_id = obj_meta->unique_component_id;
             gfloat confidence = obj_meta->confidence;
@@ -139,29 +153,37 @@ gst_nvobjmeta2json_transform (GstBaseTransform * trans, GstBuffer * inbuf,
             gint top = obj_meta->rect_params.top;
             gint width = obj_meta->rect_params.width;
             gint height = obj_meta->rect_params.height;
+            gchar* obj_class = obj_meta->obj_label;
 
             // Создаем JSON объект для текущего объекта
             json_object *json_obj = json_object_new_object();
-            json_object_object_add(json_obj, "object_id", json_object_new_int(obj_id));
-            json_object_object_add(json_obj, "confidence", json_object_new_double(confidence));
-            json_object_object_add(json_obj, "left", json_object_new_int(left));
-            json_object_object_add(json_obj, "top", json_object_new_int(top));
-            json_object_object_add(json_obj, "width", json_object_new_int(width));
-            json_object_object_add(json_obj, "height", json_object_new_int(height));
+            json_object_object_add(json_obj, "clazz", json_object_new_string((const char *)obj_class));
+            json_object_object_add(json_obj, "id", json_object_new_int(0));
+            json_object_object_add(json_obj, "lostCount", json_object_new_int(0));
+            json_object_object_add(json_obj, "x", json_object_new_int((int)left));
+            json_object_object_add(json_obj, "y", json_object_new_int((int)top));
+            json_object_object_add(json_obj, "width", json_object_new_int((int)width));
+            json_object_object_add(json_obj, "height", json_object_new_int((int)height));
+            json_object_object_add(json_obj, "confidence", json_object_new_double((double)confidence));
 
-            // Добавляем JSON объект в корневой JSON
-            json_object_object_add(json_root, "object", json_obj);
+            // Добавляем JSON объект в список
+            json_object_array_add(objects_array, json_obj);
         }
     }
 
+    // Добавляем JSON объект в корневой JSON
+    json_object_object_add(json_root, "objects_array", objects_array);
+
     // Конвертируем JSON в строку
     const gchar *json_str = json_object_to_json_string(json_root);
+
+    const gchar *utf8_json_str = g_utf8_make_valid(json_str, -1);
 
     // Освобождаем JSON объект
     json_object_put(json_root);
 
     // Создаем новый буфер с JSON данными
-    GstBuffer *outbuf = gst_buffer_new_wrapped(json_str, strlen(json_str));
+    outbuf = gst_buffer_new_wrapped(utf8_json_str, strlen(utf8_json_str));
     if (outbuf == NULL) {
         return GST_FLOW_ERROR;
     }
