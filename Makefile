@@ -1,6 +1,6 @@
 CUDA_VER:=12.1
-CXX:= g++
-SRCS:= gstnvobjmeta2json.cpp
+CXX:= gcc
+SRCS:= gstnvobjmeta2json.c
 INCS:= $(wildcard *.h)
 LIB:=libgstnvobjmeta2json.so
 
@@ -18,7 +18,7 @@ CFLAGS+= \
 	-I $(DEEPSTREAM_INTALL_DIR)/sources/includes \
 
 
-OBJS:= $(SRCS:.cpp=.o)
+OBJS:= $(SRCS:.c=.o)
 
 PKGS:= gstreamer-1.0 gstreamer-base-1.0 gstreamer-video-1.0 json-c
 CFLAGS+=$(shell pkg-config --cflags $(PKGS))
@@ -27,7 +27,7 @@ LIBS+=$(shell pkg-config --libs $(PKGS))
 
 all: $(LIB)
 
-%.o: %.cpp $(INCS) Makefile
+%.o: %.c $(INCS) Makefile
 	@echo $(CFLAGS)
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
