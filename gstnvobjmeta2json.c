@@ -172,11 +172,10 @@ gst_nvobjmeta2json_transform (GstBaseTransform * trans, GstBuffer * inbuf,
     }
 
     // Добавляем JSON объект в корневой JSON
-    json_object_object_add(json_root, "objects_array", objects_array);
+    json_object_object_add(json_root, "objects", objects_array);
 
     // Конвертируем JSON в строку
-    const gchar *json_str = json_object_to_json_string(json_root);
-
+    const gchar *json_str =  json_object_to_json_string_ext(json_root, JSON_C_TO_STRING_NOZERO);
     const gchar *utf8_json_str = g_utf8_make_valid(json_str, -1);
 
     // Освобождаем JSON объект
