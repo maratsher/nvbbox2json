@@ -1,33 +1,5 @@
-/* GStreamer
- * Copyright (C) 2023 FIXME <fixme@example.com>
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
- *
- * You should have received a copy of the GNU Library General Public
- * License along with this library; if not, write to the
- * Free Software Foundation, Inc., 51 Franklin Street, Suite 500,
- * Boston, MA 02110-1335, USA.
- */
-/**
- * SECTION:element-gstnvobjmeta2json
- *
- * The nvobjmeta2json element does FIXME stuff.
- *
- * <refsect2>
- * <title>Example launch line</title>
- * |[
- * gst-launch-1.0 -v fakesrc ! nvobjmeta2json ! FIXME ! fakesink
- * ]|
- * FIXME Describe what the pipeline does.
- * </refsect2>
+/* 
+    created by maratsher 2023
  */
 
 #ifdef HAVE_CONFIG_H
@@ -35,6 +7,7 @@
 #endif
 
 #include <gst/gst.h>
+#include <glib.h>
 #include <gst/base/gstbasetransform.h>
 #include "gstnvobjmeta2json.h"
 #include "gstnvdsmeta.h"
@@ -45,9 +18,10 @@ GST_DEBUG_CATEGORY_STATIC (gst_nvobjmeta2json_debug_category);
 #define GST_CAT_DEFAULT gst_nvobjmeta2json_debug_category
 
 /* prototypes */
+static GstFlowReturn gst_nvobjmeta2json_prepare_output_buffer (GstBaseTransform *
+    trans, GstBuffer * input, GstBuffer ** outbuf);
 static GstFlowReturn gst_nvobjmeta2json_transform (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf);
-
 
 enum
 {
@@ -97,7 +71,7 @@ gst_nvobjmeta2json_class_init (GstNvobjmeta2jsonClass * klass)
       "FIXME Long name", "Generic", "FIXME Description",
       "FIXME <fixme@example.com>");
 
-
+  base_transform_class->prepare_output_buffer = GST_DEBUG_FUNCPTR (gst_nvobjmeta2json_prepare_output_buffer);
   base_transform_class->transform = GST_DEBUG_FUNCPTR (gst_nvobjmeta2json_transform);
 
 }
@@ -107,22 +81,20 @@ gst_nvobjmeta2json_init (GstNvobjmeta2json *nvobjmeta2json)
 {
 }
 
-
-/* transform */
 static GstFlowReturn
-gst_nvobjmeta2json_transform (GstBaseTransform * trans, GstBuffer * inbuf,
-    GstBuffer * outbuf)
+gst_nvobjmeta2json_prepare_output_buffer (GstBaseTransform * trans, GstBuffer * input,
+    GstBuffer ** outbuf)
 {
     GstNvobjmeta2json *nvobjmeta2json = GST_NVOBJMETA2JSON (trans);
+    GST_DEBUG_OBJECT (nvobjmeta2json, "prepare_output_buffer");
 
-    GST_DEBUG_OBJECT (nvobjmeta2json, "transform");
     NvDsBatchMeta *batch_meta = NULL;
     NvDsObjectMeta *obj_meta = NULL;
     GList *l;
     GList *g;
 
     // Получаем метаданные пакета из буфера
-    batch_meta = gst_buffer_get_nvds_batch_meta (inbuf);
+    batch_meta = gst_buffer_get_nvds_batch_meta (input);
     if (batch_meta == NULL) {
         return GST_FLOW_ERROR;
     }
@@ -143,9 +115,9 @@ gst_nvobjmeta2json_transform (GstBaseTransform * trans, GstBuffer * inbuf,
     for (l = batch_meta->frame_meta_list; l != NULL; l = l->next) {
         NvDsFrameMeta *frame_meta = (NvDsFrameMeta *) (l->data);
 
-        for (GList *o = frame_meta->obj_meta_list; o != NULL; o = o->next) {
+        for (g = frame_meta->obj_meta_list; g != NULL; g = g->next) {
 
-            NvDsObjectMeta *obj_meta = (NvDsObjectMeta *) (o->data);
+            NvDsObjectMeta *obj_meta = (NvDsObjectMeta *) (g->data);
             // Извлекаем данные из NvDsObjectMeta
             gint obj_id = obj_meta->unique_component_id;
             gfloat confidence = obj_meta->confidence;
@@ -175,20 +147,41 @@ gst_nvobjmeta2json_transform (GstBaseTransform * trans, GstBuffer * inbuf,
     json_object_object_add(json_root, "objects", objects_array);
 
     // Конвертируем JSON в строку
-    const gchar *json_str =  json_object_to_json_string_ext(json_root, JSON_C_TO_STRING_NOZERO);
-    const gchar *utf8_json_str = g_utf8_make_valid(json_str, -1);
+    const gchar *json_str = json_object_to_json_string_ext(json_root, JSON_C_TO_STRING_SPACED);
+    const gchar *json_str_copy = g_strdup(json_str);
+    gsize json_str_copy_len = strlen(json_str_copy);
 
-    // Освобождаем JSON объект
-    json_object_put(json_root);
+    // Задаем нужный размер выходному буфферу
+    *outbuf = gst_buffer_new_allocate (NULL, json_str_copy_len, 0);
 
-    // Создаем новый буфер с JSON данными
-    outbuf = gst_buffer_new_wrapped(utf8_json_str, strlen(utf8_json_str));
-    if (outbuf == NULL) {
+    //Получаем доступ к данным
+    GstMapInfo map;
+    if (!gst_buffer_map(*outbuf, &map, GST_MAP_WRITE)) {
+        g_printerr("Failed to map output buffer\n");
         return GST_FLOW_ERROR;
     }
 
+    // Копируем данные из json_str_copy в буфер
+    memcpy(map.data, json_str_copy, json_str_copy_len);
+
+    //Освобождение ресурсов
+    gst_buffer_unmap(*outbuf, &map);
+    g_free(json_str_copy);
+    json_object_put(json_root);
+
     // Отправляем буфер дальше по пайплайну
-    return gst_pad_push (GST_BASE_TRANSFORM_SRC_PAD (trans), outbuf);
+    return GST_FLOW_OK;
+}
+
+/* transform */
+static GstFlowReturn
+gst_nvobjmeta2json_transform (GstBaseTransform * trans, GstBuffer * inbuf,
+    GstBuffer * outbuf)
+{
+    GstNvobjmeta2json *nvobjmeta2json = GST_NVOBJMETA2JSON (trans);
+    GST_DEBUG_OBJECT (nvobjmeta2json, "transform");
+
+    return GST_FLOW_OK;
 }
 
 static gboolean
